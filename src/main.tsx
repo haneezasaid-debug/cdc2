@@ -3,14 +3,42 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Handle third-party script load errors (e.g. Disqus cross-origin embed) gracefully
+// Handle cross-origin script errors (e.g. Disqus embed script loading) gracefully
 if (typeof window !== 'undefined') {
-  window.addEventListener('error', (event) => {
-    if (event.message === 'Script error.' || event.filename?.includes('disqus')) {
-      // Prevent third-party script cross-origin errors from throwing unhandled exceptions
-      event.preventDefault();
+  const originalOnError = window.onerror;
+  window.onerror = function (msg, url, lineNo, columnNo, error) {
+    const msgStr = String(msg || '');
+    if (msgStr.includes('Script error') || (url && url.includes('disqus'))) {
+      return true; // Suppress cross-origin script errors from triggering runtime error overlays
     }
-  });
+    if (originalOnError) {
+      return originalOnError.call(window, msg, url, lineNo, columnNo, error);
+    }
+    return false;
+  };
+
+  window.addEventListener(
+    'error',
+    (event: ErrorEvent) => {
+      const msgStr = String(event.message || '');
+      if (msgStr.includes('Script error') || event.filename?.includes('disqus')) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    true
+  );
+
+  window.addEventListener(
+    'unhandledrejection',
+    (event: PromiseRejectionEvent) => {
+      const reasonStr = String(event.reason || '');
+      if (reasonStr.includes('Script error') || reasonStr.includes('disqus')) {
+        event.preventDefault();
+      }
+    },
+    true
+  );
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -18,4 +46,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
 
